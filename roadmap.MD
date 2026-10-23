@@ -206,8 +206,8 @@ Não avançar para distribuição pública sem comprovar autenticação real.
 - [x] Documentar uso, limitações e verificações do protótipo.
 - [x] Criar este roadmap com histórico e critérios de conclusão.
 - [x] Inicializar o controle de versão local do projeto.
-- [ ] Registrar a base inicial em um commit.
-- [ ] Definir a licença do código próprio e a identificação provisória do produto.
+- [x] Registrar a base inicial em um commit.
+- [x] Definir a licença do código próprio (GPL-3.0-or-later) e a identificação do produto (Redoma).
 
 **Conclusão:** base rastreável, documentos acessíveis e histórico inicial registrado.
 

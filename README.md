@@ -246,8 +246,13 @@ de falhas do processo. Não executam autenticação nem acessam certificados.
 
 ## Licença
 
-A definir. Até lá, todos os direitos reservados ao autor; abra uma issue se
-quiser usar ou contribuir.
+Software livre sob a [GNU General Public License v3.0 ou posterior](LICENSE)
+(`GPL-3.0-or-later`), a mesma licença do Waydroid. Você pode usar, estudar,
+modificar e redistribuir; versões modificadas distribuídas devem manter o
+código aberto sob a mesma licença. Sem garantia, conforme os termos da licença.
+
+A licença cobre apenas o código deste repositório. O aplicativo Certisign, o
+Android e os serviços Google têm termos próprios e não são distribuídos aqui.
 
 ## Referências
 
