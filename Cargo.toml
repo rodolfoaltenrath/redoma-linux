@@ -7,6 +7,9 @@ repository = "https://github.com/rodolfoaltenrath/redoma-linux"
 description = "Executa o app oficial Certisign no Linux, isolado em contêiner Waydroid"
 publish = false
 
+[dependencies]
+libc = "0.2"
+
 [profile.release]
 opt-level = "s"
 lto = true
