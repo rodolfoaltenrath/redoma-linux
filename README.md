@@ -18,6 +18,29 @@ acontecem exclusivamente dentro do aplicativo oficial.
 
 O planejamento e o histórico estão em [roadmap.MD](roadmap.MD).
 
+## Para quem é
+
+Nasceu num escritório de advocacia que usa Linux e precisa do **certificado
+digital ICP-Brasil em nuvem** no dia a dia forense: peticionar, consultar
+processos e acessar sistemas públicos sem depender do celular para gerar o
+e-token a cada login.
+
+| Sistema | Uso típico | Situação com o Redoma |
+| --- | --- | --- |
+| GERID (INSS/Dataprev) | Atendimento INSS, previdenciário | E-token aceito no ambiente de referência |
+| PJe | Processo Judicial Eletrônico (Justiça Federal, do Trabalho e estaduais) | A validar |
+| eproc | Processo eletrônico (TRF4 e tribunais que o adotam) | A validar |
+| Projudi | Processo eletrônico em tribunais estaduais | A validar |
+
+O Redoma resolve **a geração e a autorização no app oficial**. A integração do
+certificado com o navegador ou com o assinador do tribunal é uma etapa separada
+e pode exigir os componentes próprios de cada sistema. Quem usa certificado A3
+em token USB ou cartão não precisa do Redoma: esses dispositivos funcionam
+nativamente no Linux via PKCS#11.
+
+Cada escritório deve avaliar o uso conforme suas políticas de segurança, os
+termos da Certisign e as normas de uso do certificado digital.
+
 ## Segurança
 
 ### O que o Redoma faz e não faz
