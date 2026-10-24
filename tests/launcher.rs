@@ -145,7 +145,8 @@ fn hides_waydroid_entries_and_installs_own_shortcut() {
     assert!(read("waydroid.com.certisign.certisign.desktop").contains("NoDisplay=true"));
     assert_eq!(read("firefox.desktop"), entry);
     let own = read("redoma.desktop");
-    assert!(own.contains("\" open\n"), "{own}");
+    assert!(own.contains("redoma\"\n"), "{own}");
+    assert!(own.contains("Actions=configure;\n"), "{own}");
     assert!(
         own.contains("StartupWMClass=waydroid.com.certisign.certisign\n"),
         "{own}"
@@ -231,4 +232,60 @@ fn rejects_package_overrides_without_invoking_waydroid() {
         .unwrap();
     assert!(!output.status.success());
     assert!(fixture.calls().is_empty());
+}
+
+#[test]
+fn privileged_actions_require_root_and_a_known_action() {
+    let fixture = Fixture::new();
+    for args in [
+        &["privileged", "install-environment", "--clipboard=block"][..],
+        &["privileged", "run", "/bin/sh"][..],
+        &["privileged"][..],
+    ] {
+        let output = fixture.command(args[0]).args(&args[1..]).output().unwrap();
+        assert!(!output.status.success(), "{args:?}");
+    }
+    let output = fixture
+        .command("privileged")
+        .args(["install-environment", "--clipboard=block"])
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&output.stderr).contains("pkexec"));
+    assert!(fixture.calls().is_empty());
+}
+
+#[test]
+fn shows_again_only_the_entries_redoma_hid() {
+    let fixture = Fixture::new();
+    fixture.start_session();
+    let applications = fixture.applications();
+    let contacts = applications.join("waydroid.com.google.android.contacts.desktop");
+    let settings = applications.join("waydroid.com.android.settings.desktop");
+    fs::write(&contacts, "[Desktop Entry]\nName=Contacts\n").unwrap();
+    // Oculto pelo próprio Waydroid; deve continuar oculto.
+    fs::write(
+        &settings,
+        "[Desktop Entry]\nNoDisplay=true\nName=Settings\n",
+    )
+    .unwrap();
+    successful(fixture.command("open").output().unwrap());
+    assert!(
+        fs::read_to_string(&contacts)
+            .unwrap()
+            .contains("NoDisplay=true")
+    );
+
+    let options = fixture.directory.join(".config/redoma/options");
+    fs::create_dir_all(options.parent().unwrap()).unwrap();
+    fs::write(&options, "hide_apps=false\n").unwrap();
+    successful(fixture.command("open").output().unwrap());
+    assert_eq!(
+        fs::read_to_string(&contacts).unwrap(),
+        "[Desktop Entry]\nName=Contacts\n"
+    );
+    assert!(
+        fs::read_to_string(&settings)
+            .unwrap()
+            .contains("NoDisplay=true")
+    );
 }

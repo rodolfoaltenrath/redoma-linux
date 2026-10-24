@@ -1,4 +1,5 @@
-//! Integração com a área de trabalho: atalhos do menu e dock do GNOME.
+//! Integração com a área de trabalho: atalhos do menu, dock do GNOME e
+//! início automático.
 
 use std::env;
 use std::fs;
@@ -11,28 +12,43 @@ use crate::PACKAGE;
 pub const DESKTOP_ID: &str = "redoma.desktop";
 // app_id da janela criada pelo Waydroid; associa a janela ao atalho próprio.
 const WINDOW_APP_ID: &str = "waydroid.com.certisign.certisign";
+// Atalho do Certisign gerado pelo Waydroid: sempre oculto, pois seu
+// `waydroid app launch` não reabre uma janela fechada.
+const WAYDROID_CERTISIGN_ENTRY: &str = "waydroid.com.certisign.certisign.desktop";
+// Sobreposição local do atalho de sistema que abre a interface Android completa.
+const FULL_UI_ENTRY: &str = "Waydroid.desktop";
+// Atalhos ocultados pelo Redoma, para reexibir apenas esses depois.
+const HIDDEN_LIST: &str = "redoma/hidden-entries";
 
-pub fn integrate_desktop_reporting() {
-    match integrate_desktop() {
+pub fn integrate_desktop_reporting(hide_apps: bool) {
+    match integrate_desktop(hide_apps) {
         Ok(0) => {}
         Ok(count) => eprintln!("Atalhos do menu ajustados: {count}"),
         Err(error) => eprintln!("Aviso: não foi possível ajustar os atalhos do menu: {error}"),
     }
 }
 
-pub fn data_home() -> Option<PathBuf> {
-    env::var_os("XDG_DATA_HOME")
+fn xdg_home(variable: &str, fallback: &str) -> Option<PathBuf> {
+    env::var_os(variable)
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
-        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
+        .or_else(|| env::var_os("HOME").map(|home| PathBuf::from(home).join(fallback)))
+}
+
+pub fn data_home() -> Option<PathBuf> {
+    xdg_home("XDG_DATA_HOME", ".local/share")
+}
+
+pub fn config_home() -> Option<PathBuf> {
+    xdg_home("XDG_CONFIG_HOME", ".config")
 }
 
 /// O Waydroid cria um atalho no menu do Linux para cada app Android e preserva
-/// `NoDisplay` ao regenerá-los. Todos ficam ocultos, inclusive o do Certisign,
-/// cujo `waydroid app launch` não reabre uma janela fechada; o atalho próprio
-/// usa `open`. Os apps continuam instalados no Android.
-pub fn integrate_desktop() -> io::Result<usize> {
-    let Some(data_home) = data_home() else {
+/// `NoDisplay` ao regenerá-los. Com `hide_apps`, os atalhos dos demais apps
+/// ficam ocultos; sem, os que o Redoma ocultou voltam a aparecer. Os apps
+/// continuam instalados no Android.
+pub fn integrate_desktop(hide_apps: bool) -> io::Result<usize> {
+    let (Some(data_home), Some(config_home)) = (data_home(), config_home()) else {
         return Ok(0);
     };
     let applications = data_home.join("applications");
@@ -47,47 +63,107 @@ pub fn integrate_desktop() -> io::Result<usize> {
         fs::write(&own_entry, content)?;
         changed += 1;
     }
-    Ok(changed + hide_waydroid_entries(&applications)?)
+    let certisign = applications.join(WAYDROID_CERTISIGN_ENTRY);
+    if let Ok(entry) = fs::read_to_string(&certisign)
+        && let Some(updated) = with_no_display(&entry)
+    {
+        fs::write(&certisign, updated)?;
+        changed += 1;
+    }
+    let list = config_home.join(HIDDEN_LIST);
+    changed += if hide_apps {
+        hide_waydroid_entries(&applications, &list)?
+    } else {
+        show_hidden_entries(&applications, &list)?
+    };
+    Ok(changed)
 }
 
-pub fn hide_waydroid_entries(applications: &Path) -> io::Result<usize> {
-    let mut hidden = 0;
+fn hide_waydroid_entries(applications: &Path, list: &Path) -> io::Result<usize> {
+    let mut hidden: Vec<String> = fs::read_to_string(list)
+        .unwrap_or_default()
+        .lines()
+        .map(str::to_owned)
+        .collect();
+    let before = hidden.len();
     for entry in fs::read_dir(applications)? {
         let path = entry?.path();
         let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
             continue;
         };
-        if !name.starts_with("waydroid.") || !name.ends_with(".desktop") {
+        if !name.starts_with("waydroid.")
+            || !name.ends_with(".desktop")
+            || name == WAYDROID_CERTISIGN_ENTRY
+        {
             continue;
         }
         if let Some(updated) = with_no_display(&fs::read_to_string(&path)?) {
             fs::write(&path, updated)?;
-            hidden += 1;
+            hidden.push(name.to_owned());
         }
     }
-    // O atalho "Waydroid" abre a interface completa com todos os apps.
-    let full_ui = applications.join("Waydroid.desktop");
-    let system_full_ui = Path::new("/usr/share/applications/Waydroid.desktop");
+    let full_ui = applications.join(FULL_UI_ENTRY);
+    let system_full_ui = Path::new("/usr/share/applications").join(FULL_UI_ENTRY);
     if !full_ui.exists() && system_full_ui.exists() {
         let content = fs::read_to_string(system_full_ui)?;
         fs::write(full_ui, with_no_display(&content).unwrap_or(content))?;
-        hidden += 1;
+        hidden.push(FULL_UI_ENTRY.to_owned());
     }
-    Ok(hidden)
+    let count = hidden.len() - before;
+    if count > 0 {
+        if let Some(parent) = list.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        hidden.sort();
+        hidden.dedup();
+        fs::write(list, hidden.join("\n") + "\n")?;
+    }
+    Ok(count)
+}
+
+fn show_hidden_entries(applications: &Path, list: &Path) -> io::Result<usize> {
+    let Ok(hidden) = fs::read_to_string(list) else {
+        return Ok(0);
+    };
+    let mut shown = 0;
+    for name in hidden
+        .lines()
+        .filter(|name| !name.is_empty() && !name.contains('/'))
+    {
+        let path = applications.join(name);
+        if name == FULL_UI_ENTRY {
+            if path.exists() {
+                fs::remove_file(&path)?;
+                shown += 1;
+            }
+        } else if let Ok(content) = fs::read_to_string(&path)
+            && let Some(updated) = without_no_display(&content)
+        {
+            fs::write(&path, updated)?;
+            shown += 1;
+        }
+    }
+    fs::remove_file(list)?;
+    Ok(shown)
 }
 
 pub fn desktop_entry(executable: &Path, icon: &Path) -> String {
+    let exec = desktop_exec_argument(&executable.to_string_lossy());
     format!(
         "[Desktop Entry]\n\
          Type=Application\n\
          Name=Certisign\n\
          Comment=App oficial Certisign via Waydroid\n\
-         Exec={} open\n\
+         Exec={exec}\n\
          Icon={}\n\
          Terminal=false\n\
          Categories=Office;\n\
-         StartupWMClass={WINDOW_APP_ID}\n",
-        desktop_exec_argument(&executable.to_string_lossy()),
+         StartupWMClass={WINDOW_APP_ID}\n\
+         Actions=configure;\n\
+         \n\
+         [Desktop Action configure]\n\
+         Name=Configurar Redoma\n\
+         Exec={exec} wizard\n",
         icon.display(),
     )
 }
@@ -110,9 +186,9 @@ pub fn desktop_exec_argument(argument: &str) -> String {
     quoted
 }
 
-/// Troca o favorito da dock do GNOME que aponta para o atalho do Waydroid.
-pub fn replace_dock_favorite() {
-    let waydroid_id = format!("'waydroid.{PACKAGE}.desktop'");
+/// Fixa ou desafixa o atalho na dock do GNOME, removendo o favorito antigo
+/// que apontava para o atalho do Waydroid. Sem GNOME, não faz nada.
+pub fn set_dock_pin(pinned: bool) {
     let Ok(output) = Command::new("gsettings")
         .args(["get", "org.gnome.shell", "favorite-apps"])
         .stderr(Stdio::null())
@@ -120,24 +196,103 @@ pub fn replace_dock_favorite() {
     else {
         return;
     };
-    let favorites = String::from_utf8_lossy(&output.stdout);
-    if !output.status.success() || !favorites.contains(&waydroid_id) {
+    if !output.status.success() {
         return;
     }
-    let updated = if favorites.contains(&format!("'{DESKTOP_ID}'")) {
-        favorites
-            .replace(&format!("{waydroid_id}, "), "")
-            .replace(&format!(", {waydroid_id}"), "")
-    } else {
-        favorites.replace(&waydroid_id, &format!("'{DESKTOP_ID}'"))
-    };
-    let replaced = Command::new("gsettings")
-        .args(["set", "org.gnome.shell", "favorite-apps", updated.trim()])
-        .status()
-        .is_ok_and(|status| status.success());
-    if replaced {
-        println!("Favorito da dock trocado para o atalho {DESKTOP_ID}.");
+    if let Some(updated) = updated_favorites(&String::from_utf8_lossy(&output.stdout), pinned) {
+        let _ = Command::new("gsettings")
+            .args(["set", "org.gnome.shell", "favorite-apps", &updated])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
     }
+}
+
+/// Recebe a lista no formato do `gsettings get` e devolve a nova, se mudou.
+fn updated_favorites(current: &str, pinned: bool) -> Option<String> {
+    let current = current.trim();
+    let items: Vec<String> = current
+        .trim_start_matches("@as")
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(|item| item.trim().trim_matches('\'').to_owned())
+        .filter(|item| !item.is_empty())
+        .collect();
+    let mut updated = Vec::new();
+    for item in &items {
+        let replacement = if item == WAYDROID_CERTISIGN_ENTRY {
+            DESKTOP_ID
+        } else {
+            item.as_str()
+        };
+        if replacement == DESKTOP_ID && !pinned {
+            continue;
+        }
+        if !updated
+            .iter()
+            .any(|existing: &String| existing == replacement)
+        {
+            updated.push(replacement.to_owned());
+        }
+    }
+    if pinned && !updated.iter().any(|item| item == DESKTOP_ID) {
+        updated.push(DESKTOP_ID.to_owned());
+    }
+    (updated != items).then(|| {
+        let quoted: Vec<String> = updated.iter().map(|item| format!("'{item}'")).collect();
+        format!("[{}]", quoted.join(", "))
+    })
+}
+
+/// Inicia o Android em segundo plano no login, para as notificações de
+/// autorização chegarem sem abrir o app.
+pub fn set_autostart(enabled: bool) -> io::Result<()> {
+    let Some(config_home) = config_home() else {
+        return Ok(());
+    };
+    let path = config_home.join("autostart").join(DESKTOP_ID);
+    if enabled {
+        fs::create_dir_all(config_home.join("autostart"))?;
+        fs::write(
+            path,
+            format!(
+                "[Desktop Entry]\n\
+                 Type=Application\n\
+                 Name=Redoma (Android em segundo plano)\n\
+                 Exec={} background\n\
+                 NoDisplay=true\n\
+                 X-GNOME-Autostart-enabled=true\n",
+                desktop_exec_argument(&env::current_exe()?.to_string_lossy())
+            ),
+        )
+    } else {
+        match fs::remove_file(path) {
+            Err(error) if error.kind() != io::ErrorKind::NotFound => Err(error),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// Remove `NoDisplay=true` do grupo principal; `None` se não houver.
+fn without_no_display(content: &str) -> Option<String> {
+    let mut in_entry = false;
+    let mut removed = false;
+    let lines: Vec<&str> = content
+        .lines()
+        .filter(|line| {
+            let trimmed = line.trim();
+            if trimmed.starts_with('[') {
+                in_entry = trimmed == "[Desktop Entry]";
+            } else if in_entry && trimmed == "NoDisplay=true" {
+                removed = true;
+                return false;
+            }
+            true
+        })
+        .collect();
+    removed.then(|| lines.join("\n") + "\n")
 }
 
 /// Retorna o atalho com `NoDisplay=true` no grupo principal, ou `None` se já estiver oculto.
@@ -165,7 +320,39 @@ pub fn with_no_display(content: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{desktop_exec_argument, with_no_display};
+    use super::{desktop_exec_argument, updated_favorites, with_no_display, without_no_display};
+
+    #[test]
+    fn pins_replaces_and_unpins_dock_favorites() {
+        assert_eq!(
+            updated_favorites(
+                "['firefox.desktop', 'waydroid.com.certisign.certisign.desktop']",
+                true
+            )
+            .unwrap(),
+            "['firefox.desktop', 'redoma.desktop']"
+        );
+        assert_eq!(
+            updated_favorites("@as []", true).unwrap(),
+            "['redoma.desktop']"
+        );
+        assert!(updated_favorites("['redoma.desktop']", true).is_none());
+        assert_eq!(
+            updated_favorites("['redoma.desktop', 'code.desktop']", false).unwrap(),
+            "['code.desktop']"
+        );
+        assert!(updated_favorites("['code.desktop']", false).is_none());
+    }
+
+    #[test]
+    fn shows_an_entry_hidden_by_redoma() {
+        let hidden = with_no_display("[Desktop Entry]\nName=Contacts\n").unwrap();
+        assert_eq!(
+            without_no_display(&hidden).unwrap(),
+            "[Desktop Entry]\nName=Contacts\n"
+        );
+        assert!(without_no_display("[Desktop Entry]\nName=Contacts\n").is_none());
+    }
 
     #[test]
     fn quotes_exec_paths_per_desktop_entry_spec() {

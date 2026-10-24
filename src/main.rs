@@ -1,26 +1,37 @@
+mod checks;
 mod desktop;
+mod os_arch;
+mod privileged;
+mod settings;
+mod setup;
+mod ui;
 mod waydroid;
 
 use std::env;
-use std::ffi::OsString;
 use std::process::ExitCode;
 
-use desktop::{integrate_desktop_reporting, replace_dock_favorite};
+use desktop::integrate_desktop_reporting;
+use settings::Options;
 use waydroid::{
-    STOP_TIMEOUT_SECONDS, WINDOW_PROPERTIES, ensure_session, find_waydroid, release_closed_window,
-    replace, replace_with_waydroid, session_running, wait_until, waydroid_output, wayland_socket,
+    ensure_session, find_waydroid, release_closed_window, replace, replace_with_waydroid,
+    wayland_socket,
 };
 
 pub const PACKAGE: &str = "com.certisign.certisign";
 const HELP: &str = "redoma — app oficial Certisign no Linux, isolado em contêiner Waydroid
 
-Uso: redoma <comando>
+Uso: redoma [comando]
 
+Sem comando, abre o Certisign; se o ambiente ainda não estiver pronto,
+abre o assistente gráfico de instalação.
+
+  wizard   Abre o assistente gráfico de instalação e configuração
   doctor   Verifica Waydroid e acesso ao compositor Wayland
   status   Mostra o estado informado pelo Waydroid
   setup    Configura janela 9:16, Android em segundo plano e oculta outros apps
   open     Abre o app oficial (inicia a sessão em segundo plano se necessário)
   stop     Encerra a sessão Waydroid inteira, incluindo outros apps
+  background  Inicia o Android em segundo plano, sem abrir janela
 
 O cadastro e a autenticação acontecem no app oficial.
 Após 'setup', fechar a janela mantém o Android ativo em segundo plano.
@@ -38,12 +49,21 @@ fn main() -> ExitCode {
 }
 
 fn run() -> Result<(), String> {
-    let mut args = env::args_os().skip(1);
-    let action = args.next().unwrap_or_else(|| OsString::from("--help"));
-    if args.next().is_some() {
-        return Err("argumentos extras não são aceitos. Use --help.".into());
+    let args = env::args_os()
+        .skip(1)
+        .map(|arg| arg.into_string())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| "argumentos devem ser texto UTF-8.".to_string())?;
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    match args.as_slice() {
+        // Ações administrativas: lista fechada, validada em `privileged::parse`.
+        ["privileged", request @ ..] => return privileged::run(privileged::parse(request)?),
+        [_, _, ..] => return Err("argumentos extras não são aceitos. Use --help.".into()),
+        _ => {}
     }
-    match action.to_str() {
+    match args.first().copied() {
+        None => default_action(),
+        Some("wizard") => ui::run(),
         Some("--help" | "-h" | "help") => {
             print!("{HELP}");
             Ok(())
@@ -51,24 +71,48 @@ fn run() -> Result<(), String> {
         Some("doctor") => doctor(),
         Some("status") => replace_with_waydroid(&["status"]),
         Some("setup") => setup(),
-        Some("open") => {
+        Some("background") => {
             let waydroid = find_waydroid()?;
             wayland_socket()?;
-            let was_running = ensure_session(&waydroid)?;
-            integrate_desktop_reporting();
-            if was_running {
-                release_closed_window(&waydroid)?;
-            }
-            eprintln!("Abrindo o app oficial Certisign ({PACKAGE}).");
-            eprintln!(
-                "Fechar a janela mantém o Android em segundo plano; use 'stop' para encerrar."
-            );
-            // A sessão já roda destacada do terminal; o Waydroid só traz a janela.
-            replace(waydroid, &["app", "launch", PACKAGE])
+            ensure_session(&waydroid)?;
+            integrate_desktop_reporting(Options::load().unwrap_or_default().hide_apps);
+            Ok(())
         }
+        Some("open") => open(),
         Some("stop") => replace_with_waydroid(&["session", "stop"]),
         _ => Err("comando desconhecido. Use --help.".into()),
     }
+}
+
+/// Ação do ícone: abre o app, ou o assistente se a configuração estiver incompleta.
+fn default_action() -> Result<(), String> {
+    if Options::load().is_none() || !checks::state().environment_ready() {
+        return ui::run();
+    }
+    open().inspect_err(|message| {
+        // Aberto pelo ícone, o erro não teria onde aparecer.
+        let _ = std::process::Command::new("notify-send")
+            .args([
+                "--app-name=Redoma",
+                "Não foi possível abrir o Certisign",
+                message,
+            ])
+            .status();
+    })
+}
+
+fn open() -> Result<(), String> {
+    let waydroid = find_waydroid()?;
+    wayland_socket()?;
+    let was_running = ensure_session(&waydroid)?;
+    integrate_desktop_reporting(Options::load().unwrap_or_default().hide_apps);
+    if was_running {
+        release_closed_window(&waydroid)?;
+    }
+    eprintln!("Abrindo o app oficial Certisign ({PACKAGE}).");
+    eprintln!("Fechar a janela mantém o Android em segundo plano; use 'stop' para encerrar.");
+    // A sessão já roda destacada do terminal; o Waydroid só traz a janela.
+    replace(waydroid, &["app", "launch", PACKAGE])
 }
 
 fn doctor() -> Result<(), String> {
@@ -93,27 +137,9 @@ fn doctor() -> Result<(), String> {
 }
 
 fn setup() -> Result<(), String> {
-    let waydroid = find_waydroid()?;
-    wayland_socket()?;
-    ensure_session(&waydroid)?;
-    let mut changed = false;
-    for (key, value) in WINDOW_PROPERTIES {
-        if waydroid_output(&waydroid, &["prop", "get", key])?.trim() != value {
-            waydroid_output(&waydroid, &["prop", "set", key, value])?;
-            println!("Propriedade ajustada: {key}={value}");
-            changed = true;
-        }
-    }
-    if changed {
-        // Tamanho e modo da janela só valem para a próxima sessão.
-        println!("Reiniciando a sessão Android para aplicar a janela.");
-        waydroid_output(&waydroid, &["session", "stop"])?;
-        wait_until(STOP_TIMEOUT_SECONDS, || Ok(!session_running(&waydroid)?))
-            .map_err(|_| "a sessão Android não encerrou a tempo.".to_string())?;
-        ensure_session(&waydroid)?;
-    }
-    integrate_desktop_reporting();
-    replace_dock_favorite();
+    setup::configure(&Options::load().unwrap_or_default(), |step| {
+        println!("{step}")
+    })?;
     println!("Configuração concluída. Use o ícone Certisign ou 'open'.");
     Ok(())
 }

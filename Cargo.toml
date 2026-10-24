@@ -8,7 +8,11 @@ description = "Executa o app oficial Certisign no Linux, isolado em contêiner W
 publish = false
 
 [dependencies]
+adw = { version = "0.9", package = "libadwaita", features = ["v1_6"] }
+async-channel = "2"
+gtk = { version = "0.11", package = "gtk4" }
 libc = "0.2"
+sha2 = "0.10"
 
 [profile.release]
 opt-level = "s"

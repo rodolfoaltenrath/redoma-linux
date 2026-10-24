@@ -178,3 +178,33 @@ pub fn replace(executable: PathBuf, args: &[&str]) -> Result<(), String> {
         .exec();
     Err(format!("não foi possível executar o Waydroid: {error}"))
 }
+
+/// Indica se o app oficial está instalado no Android. Exige a sessão ativa.
+pub fn app_installed(waydroid: &Path) -> Result<bool, String> {
+    let apps = waydroid_output(waydroid, &["app", "list"])?;
+    Ok(apps
+        .lines()
+        .any(|line| line.trim() == format!("packageName: {}", crate::PACKAGE)))
+}
+
+/// Abre a página do app oficial na Play Store do Android.
+pub fn open_play_store(waydroid: &Path) -> Result<(), String> {
+    waydroid_output(
+        waydroid,
+        &[
+            "app",
+            "intent",
+            "android.intent.action.VIEW",
+            &format!("market://details?id={}", crate::PACKAGE),
+        ],
+    )
+    .map(drop)
+}
+
+/// Encerra e inicia novamente a sessão Android, aguardando o boot.
+pub fn restart_session(waydroid: &Path) -> Result<(), String> {
+    waydroid_output(waydroid, &["session", "stop"])?;
+    wait_until(STOP_TIMEOUT_SECONDS, || Ok(!session_running(waydroid)?))
+        .map_err(|_| "a sessão Android não encerrou a tempo.".to_string())?;
+    ensure_session(waydroid).map(drop)
+}
