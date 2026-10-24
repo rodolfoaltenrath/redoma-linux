@@ -1,7 +1,7 @@
 # Roadmap — Redoma (Certisign no Linux)
 
 Criado em: 16/10/2026  
-Última atualização: 18/10/2026  
+Última atualização: 24/10/2026  
 Estado: Fase 1 em andamento; e-token/acesso e persistência entre sessões confirmados pelo titular; reboot pendente.
 
 Este é o documento de acompanhamento do projeto. Registra a arquitetura
@@ -659,6 +659,35 @@ Modelo para novas entradas:
   relatado. Não foram coletados códigos ou credenciais.
 - Próximo passo: repetir o acesso após reboot em momento apropriado; documentar
   o navegador e as integrações utilizadas e validar os demais sistemas.
+
+### 2026-10-23 — Janela 9:16, segundo plano e publicação
+
+- Estado: concluído.
+- Fase ou marco: Fase 5 (início, abertura e encerramento) e Fase 0.
+- Realizado: janela única 450×800 sem suspensão; sessão Android iniciada fora
+  do terminal e lançamento após `sys.boot_completed`; reabertura da janela após
+  fechá-la (o Waydroid passa a ignorar a tarefa fechada; o launcher Android
+  limpa essa marca); atalho próprio e ocultação dos demais apps; renomeado para
+  Redoma, licença GPL-3.0-or-later, SECURITY.md e publicação em
+  `github.com/rodolfoaltenrath/redoma-linux`.
+- Evidências: testes de integração; confirmação visual do titular.
+- Resultado: multi-janela descartado (app reduzido dentro de moldura no GNOME);
+  janela sem barra de título no GNOME permanece como limitação conhecida.
+
+### 2026-10-24 — Assistente gráfico e binário único
+
+- Estado: implementado; instalação do zero pendente de validação.
+- Fase ou marco: Fases 5 e 6.
+- Realizado: assistente GTK4/libadwaita com verificação do sistema, opções
+  (ocultar apps, dock, autostart, área de transferência), instalação
+  administrativa por `pkexec` com progresso, configuração, guia da Play Store
+  com registro de dispositivo e abertura do app. Ajuste `os.arch` portado de
+  Python para Rust, compatível com o backup existente; ferramenta Python removida.
+- Evidências: 30 testes; helper administrativo executado no ambiente de
+  referência pulando todas as etapas sem alterar `waydroid.cfg`; assistente
+  percorrido até o fim e ícone confirmado pelo titular.
+- Próximo passo: validar a instalação do zero numa máquina ou VM Fedora limpa;
+  barra de título; RPM.
 
 ## 11. Referências técnicas
 

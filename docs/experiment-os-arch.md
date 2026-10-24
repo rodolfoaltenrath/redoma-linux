@@ -119,6 +119,11 @@ atualizações permanece pendente; o resultado não constitui homologação ou s
 
 ## Restauração
 
+> **Atualização de 24/10/2026:** a ferramenta Python foi portada para o
+> próprio Redoma (`src/os_arch.rs`), com o mesmo diretório e formato de backup.
+> Para restaurar, use `pkexec redoma privileged restore-os-arch`, que já executa
+> `waydroid upgrade -o`. Os comandos abaixo registram o procedimento da época.
+
 Estes comandos encerram a sessão Android inteira. Executar no diretório do projeto:
 
 ```sh

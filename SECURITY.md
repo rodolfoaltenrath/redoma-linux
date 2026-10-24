@@ -25,8 +25,8 @@ CPF ou capturas de tela que mostrem esses dados. Nenhum relato precisa deles.
 
 | Componente | Onde relatar |
 | --- | --- |
-| Código deste repositório (`src/`, `tests/`, `scripts/`) e documentação | Aqui, pelo relato privado acima. |
-| Configuração aplicada pelo Redoma (propriedades, atalhos, sessão) | Aqui. |
+| Código deste repositório (`src/`, `tests/`) e documentação | Aqui, pelo relato privado acima. |
+| Configuração aplicada pelo Redoma (propriedades, atalhos, sessão) e ações administrativas (`redoma privileged`) | Aqui. Falhas que permitam escalar privilégio têm prioridade máxima. |
 | Aplicativo Certisign, certificados, e-token ou serviços da Certisign | Diretamente à Certisign. |
 | Waydroid, contêiner LXC ou imagem Android | Ao [projeto Waydroid](https://github.com/waydroid/waydroid/security). |
 
@@ -47,6 +47,8 @@ correção com um aviso de segurança, dando crédito a quem relatou, se desejar
 
 O que o Redoma faz e não faz, o modelo de isolamento do contêiner e o que é
 alterado no sistema estão na seção [Segurança do README](README.md#segurança).
-Em resumo: o Redoma não recebe credenciais, não acessa a rede, não usa root e
-não modifica o app oficial. O contêiner isola arquivos, processos e rede, mas
-compartilha o kernel do Linux; não equivale a uma máquina virtual.
+Em resumo: o Redoma não recebe credenciais, não tem telemetria e não modifica
+o app oficial. Usa privilégios de administrador apenas pela janela de senha do
+sistema (`pkexec`), para ações fixas listadas em `src/privileged.rs`. O
+contêiner isola arquivos, processos e rede, mas compartilha o kernel do Linux;
+não equivale a uma máquina virtual.
