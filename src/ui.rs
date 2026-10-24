@@ -26,6 +26,7 @@ type Hook = Rc<dyn Fn()>;
 
 pub fn run() -> Result<(), String> {
     let app = adw::Application::builder().application_id(APP_ID).build();
+    gtk::Window::set_default_icon_name(crate::desktop::APP_ICON);
     app.connect_activate(|app| Wizard::new(app).start());
     // Os argumentos já foram tratados pelo Redoma; o GTK não deve interpretá-los.
     if app.run_with_args::<&str>(&[]) == glib::ExitCode::SUCCESS {

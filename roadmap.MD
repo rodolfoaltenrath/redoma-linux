@@ -687,7 +687,21 @@ Modelo para novas entradas:
   referência pulando todas as etapas sem alterar `waydroid.cfg`; assistente
   percorrido até o fim e ícone confirmado pelo titular.
 - Próximo passo: validar a instalação do zero numa máquina ou VM Fedora limpa;
-  barra de título; RPM.
+  barra de título.
+
+### 2026-10-24 — Primeiro RPM
+
+- Estado: gerado e instalado no ambiente de referência.
+- Fase ou marco: Fase 7.
+- Realizado: `packaging/rpm/redoma.spec`, atalho e ícone de sistema em
+  `packaging/common/` e `scripts/build-rpm.sh`. O pacote empacota o binário
+  compilado fora do rpmbuild, declara `waydroid` e `polkit` e não executa
+  configuração na transação.
+- Evidências: rpmlint sem erros além de ortografia em português e falta de
+  página de manual; instalação por `dnf`; ícone, reabertura e "Configurar
+  Redoma" confirmados pelo titular usando `/usr/bin/redoma`.
+- Próximo passo: instalação limpa, atualização e remoção numa máquina sem o
+  ambiente de referência.
 
 ## 11. Referências técnicas
 

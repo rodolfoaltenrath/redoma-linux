@@ -10,6 +10,8 @@ use std::process::{Command, Stdio};
 use crate::PACKAGE;
 
 pub const DESKTOP_ID: &str = "redoma.desktop";
+/// Ícone instalado pelo pacote em `hicolor/scalable/apps`.
+pub const APP_ICON: &str = "io.github.rodolfoaltenrath.Redoma";
 // app_id da janela criada pelo Waydroid; associa a janela ao atalho próprio.
 const WINDOW_APP_ID: &str = "waydroid.com.certisign.certisign";
 // Atalho do Certisign gerado pelo Waydroid: sempre oculto, pois seu
@@ -55,10 +57,15 @@ pub fn integrate_desktop(hide_apps: bool) -> io::Result<usize> {
     fs::create_dir_all(&applications)?;
     let mut changed = 0;
     let own_entry = applications.join(DESKTOP_ID);
-    let content = desktop_entry(
-        &env::current_exe()?,
-        &data_home.join(format!("waydroid/data/icons/{PACKAGE}.png")),
-    );
+    // O ícone do app só existe depois que o Certisign é instalado no Android;
+    // até lá, o atalho usa o ícone do Redoma e é atualizado no próximo `open`.
+    let app_icon = data_home.join(format!("waydroid/data/icons/{PACKAGE}.png"));
+    let icon = if app_icon.exists() {
+        app_icon.to_string_lossy().into_owned()
+    } else {
+        APP_ICON.to_owned()
+    };
+    let content = desktop_entry(&env::current_exe()?, &icon);
     if fs::read_to_string(&own_entry).ok().as_deref() != Some(content.as_str()) {
         fs::write(&own_entry, content)?;
         changed += 1;
@@ -147,7 +154,7 @@ fn show_hidden_entries(applications: &Path, list: &Path) -> io::Result<usize> {
     Ok(shown)
 }
 
-pub fn desktop_entry(executable: &Path, icon: &Path) -> String {
+pub fn desktop_entry(executable: &Path, icon: &str) -> String {
     let exec = desktop_exec_argument(&executable.to_string_lossy());
     format!(
         "[Desktop Entry]\n\
@@ -155,7 +162,7 @@ pub fn desktop_entry(executable: &Path, icon: &Path) -> String {
          Name=Certisign\n\
          Comment=App oficial Certisign via Waydroid\n\
          Exec={exec}\n\
-         Icon={}\n\
+         Icon={icon}\n\
          Terminal=false\n\
          Categories=Office;\n\
          StartupWMClass={WINDOW_APP_ID}\n\
@@ -164,7 +171,6 @@ pub fn desktop_entry(executable: &Path, icon: &Path) -> String {
          [Desktop Action configure]\n\
          Name=Configurar Redoma\n\
          Exec={exec} wizard\n",
-        icon.display(),
     )
 }
 

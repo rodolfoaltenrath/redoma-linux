@@ -157,13 +157,33 @@ O pacote configurado corresponde ao app **Certisign**, não ao remoteID ou Mobil
 
 ## Instalação e uso
 
-Compilar (uma vez; só quem compila precisa destes pacotes):
+### Pelo RPM (recomendado)
+
+Dê dois cliques em `redoma-<versão>.fc44.x86_64.rpm` e instale pelo GNOME
+Software, ou no terminal:
 
 ```sh
-sudo dnf install cargo gtk4-devel libadwaita-devel
-cargo build --release
-./target/release/redoma
+sudo dnf install ./redoma-0.1.0-1.fc44.x86_64.rpm
 ```
+
+O pacote instala `/usr/bin/redoma`, o atalho **Certisign** e o ícone, e traz o
+Waydroid como dependência. Nada é configurado durante a instalação do pacote:
+tudo acontece no assistente, no primeiro clique no ícone. Atualizar é instalar
+o RPM novo por cima; opções e cadastro são preservados. Remover:
+`sudo dnf remove redoma` (veja [o que desfazer](#o-que-o-redoma-altera-no-seu-sistema)).
+
+### Gerar o RPM a partir do código
+
+```sh
+sudo dnf install cargo gtk4-devel libadwaita-devel rpm-build
+./scripts/build-rpm.sh      # gera dist/redoma-<versão>.fc44.x86_64.rpm
+```
+
+Para desenvolver sem empacotar: `cargo build --release` e
+`./target/release/redoma`. Se depois instalar o RPM, rode `redoma setup` uma vez
+para os atalhos apontarem para `/usr/bin/redoma`.
+
+### O assistente
 
 Na primeira execução abre o **assistente**, que:
 

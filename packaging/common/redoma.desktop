@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Name=Certisign
+GenericName=Certificado digital em nuvem
+Comment=App oficial Certisign isolado em contêiner Android (Redoma)
+Exec=/usr/bin/redoma
+Icon=io.github.rodolfoaltenrath.Redoma
+Terminal=false
+Categories=Office;
+Keywords=certificado;e-token;Certisign;ICP-Brasil;PJe;eproc;Projudi;GERID;
+StartupWMClass=waydroid.com.certisign.certisign
+Actions=configure;
+
+[Desktop Action configure]
+Name=Configurar Redoma
+Exec=/usr/bin/redoma wizard
