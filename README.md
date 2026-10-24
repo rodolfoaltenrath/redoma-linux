@@ -16,6 +16,22 @@ acontecem exclusivamente dentro do aplicativo oficial.
 > e rede próprios. Requer sessão gráfica **Wayland** e kernel com suporte a
 > Binder. Leia a seção [Segurança](#segurança) antes de usar.
 
+## Download
+
+**[⬇ Baixar redoma-0.1.0-1.fc44.x86_64.rpm](https://github.com/rodolfoaltenrath/redoma-linux/releases/download/v0.1.0/redoma-0.1.0-1.fc44.x86_64.rpm)**
+· [todas as versões](https://github.com/rodolfoaltenrath/redoma-linux/releases)
+
+Para **Fedora 44, x86-64**. O repositório é privado: o download exige estar
+conectado ao GitHub com acesso a ele. Pelo terminal:
+
+```sh
+gh release download -R rodolfoaltenrath/redoma-linux -p '*.rpm'
+sudo dnf install ./redoma-*.rpm
+```
+
+Depois, clique no ícone **Certisign** no menu de aplicativos e siga o
+assistente. Detalhes em [Instalação e uso](#instalação-e-uso).
+
 O planejamento e o histórico estão em [roadmap.MD](roadmap.MD).
 
 ## Para quem é
@@ -159,8 +175,8 @@ O pacote configurado corresponde ao app **Certisign**, não ao remoteID ou Mobil
 
 ### Pelo RPM (recomendado)
 
-Dê dois cliques em `redoma-<versão>.fc44.x86_64.rpm` e instale pelo GNOME
-Software, ou no terminal:
+Baixe o RPM na [página de versões](https://github.com/rodolfoaltenrath/redoma-linux/releases),
+dê dois cliques no arquivo e instale pelo GNOME Software, ou no terminal:
 
 ```sh
 sudo dnf install ./redoma-0.1.0-1.fc44.x86_64.rpm
